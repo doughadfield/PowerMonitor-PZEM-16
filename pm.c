@@ -152,12 +152,7 @@ int displayvalues(int fd)
 
 	if (logging)
 	{
-		char timestamp[26];
-		time_t clk = time(NULL);	// get current time
-		// ctime_r(&clk, timestamp);													// fill in "timestamp" buffer with human readable time stamp
-        strftime(timestamp, 26, "%Y:%b:%d:%a:%X", localtime(&clk));
-		// timestamp[24] = 0;															// delete the trailing newline from the timestamp string
-		printf("%s,%.1f,%.2f,%.2f,%.2f,%.1f,%.2f\n", timestamp,
+		printf("%.1f,%.2f,%.2f,%.2f,%.1f,%.2f\n", 
 			   (float) voltage / 10, (float) current / 1000,
 			   (float) power / 10000, (float) energy / 1000,
 			   (float) frequency / 10, (float) factor / 100);
@@ -297,7 +292,6 @@ int takereading(int fd)
 				buf[2]);
 		return -1;
 	case 0x04:
-		displayvalues(fd);
 		return 0;
 	default:
 		fprintf(stderr, "unknown message type: %d.\n", buf[1]);
@@ -308,13 +302,21 @@ int takereading(int fd)
 /*
  * loop forever taking readings and logging them to stdout
  * Don't forget to fflush after every log entry, to flush the memory buffer
+ * Create initial logfile on startup, then new logfiles every period (24 hrs?)
+ * name logfiles with timestamp
  */
 void logloop(int fd)
 {
-	logging = true;																	// set logging flag, to print in log format
+	logging = true;																	// set global logging flag, to print in log format
+    char timestamp[26];                                                             // buffer to hold timestamp string
+
 	while (1)																		// loop forever taking readings
 	{
-		takereading(fd);															// get reading from device
+		time_t clk = time(NULL);                                                   	// get current time
+        strftime(timestamp, 26, "%Y:%b:%d:%a:%X", localtime(&clk));                 // format timestamp suitable for filename and log entry
+        printf("%s", timestamp);                                                    // output timestamp as first part of log line
+		takereading(fd);															// send command and recieve initial ack from device
+		displayvalues(fd);                                                          // read rest of data from device and present
 		fflush(stdout);																// flush output to logfile
 		sleep(INTERVAL);															// repeat every INTERVAL seconds
 	}
@@ -323,7 +325,6 @@ void logloop(int fd)
 /*
  * perror() prints passed error string, then usage string, and exits program
  */
-
 void perror(const char *errstring)
 {
 	fprintf(stderr,
@@ -338,7 +339,6 @@ void perror(const char *errstring)
  * most of the work is done by above functions
  * so main() just processes args and chooses feature to execute
  */
-
 int main(int argc, char *argv[])
 {
 	int fd;						// file descriptor for serial port
@@ -356,7 +356,8 @@ int main(int argc, char *argv[])
 	switch (argc)																	// test for arguments
 	{
 	case 1:																	    	// no args, so just take a human readable reading and exit
-		takereading(fd);
+		takereading(fd);															// send command and recieve initial ack from device
+		displayvalues(fd);                                                          // read rest of data from device and present
 		exit(0);
 
 	case 2:																	    	// only one argument, so should be "logging"

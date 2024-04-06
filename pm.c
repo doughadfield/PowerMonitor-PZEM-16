@@ -2,6 +2,13 @@
  * Copyright: Doug Hadfield 2024
  * Program to read data from PZEM-16 power monitor device
  * and either print to screen or log to stdout
+ * thanks to the contributor to stackoverflow thread below:
+ * https://stackoverflow.com/questions/6947413/how-to-open-read-and-write-from-serial-port-in-c
+ * for the sample serial port I/O code.
+ *
+ * Writing to the PZEM-16 requires the CRC bytes at the end of the message to be correct.
+ * The format is CRC16 MODBUS, but the words are REVERSED (LSW first, MSW second).
+ * use site https://crccalc.com/ to calculate CRC (MODBUS 16bit format)
  */
 
 #define INTERVAL 60
@@ -108,6 +115,8 @@ int openserial(char *portname)
 /*
  * Read the register values back from the device and convert to readable numbers
  * This function is called once the first 3 chars have been read from the device
+ * This function should really put the result values into a structure,
+ * but I'm lazy and just used separate variables
  */
 int displayvalues(int fd)
 {

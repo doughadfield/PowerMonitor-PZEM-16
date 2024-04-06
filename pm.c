@@ -1,6 +1,10 @@
+/*
+ * Copyright: Doug Hadfield 2024
+ * Program to read data from PZEM-16 power monitor device
+ * and either print to screen or log to stdout
+ */
 
-#define LOGGING																		// continuous logging mode
-#define INTERVAL 1																	// interval between log readings in seconds
+#define INTERVAL 60
 #define TERMINAL    "/dev/ttyUSB0"
 
 #include <errno.h>

@@ -311,7 +311,7 @@ void logloop(int fd, int interval)
 	while (1)																		// loop forever taking readings
 	{
 		time_t clk = time(NULL);	// get current time
-		if (clk % 86400)															// do this every so many seconds (eg 86400 = 1 day)
+		if (clk % 86400 == 0)														// do this every so many seconds (eg 86400 = 1 day)
 		{
 			fclose(logfile);														// every time period close log and start new file
 			strftime(timestamp, 26, TIMEFILESTRING, localtime(&clk));				// format timestamp suitable for filename and log entry

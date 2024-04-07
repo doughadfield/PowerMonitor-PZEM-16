@@ -11,7 +11,7 @@
  * use site https://crccalc.com/ to calculate CRC (MODBUS 16bit format)
  */
 
-#define INTERVAL 1              // logging interval in seconds
+#define INTERVAL 1																	// logging interval in seconds
 #define TERMINAL    "/dev/ttyUSB0"
 
 #include <errno.h>
@@ -29,7 +29,7 @@
  */
 char *progname;					// holds our program name (argv[0]) globally
 
-float voltage;                  // values read from device
+float voltage;					// values read from device
 float current;
 float power;
 float energy;
@@ -65,10 +65,10 @@ int set_interface_attribs(int fd, int speed)
 	tty.c_oflag &= ~OPOST;
 
 	/* timed read - wait for VTIME (tenths of) secs then return
-     * regardless of number of chars read
-     */
-	tty.c_cc[VMIN] = 0;         // don't wait for min chars read
-	tty.c_cc[VTIME] = 5;        // timeout and return after half a sec if no chars read
+	 * regardless of number of chars read
+	 */
+	tty.c_cc[VMIN] = 0;																// don't wait for min chars read
+	tty.c_cc[VTIME] = 5;															// timeout and return after half a sec if no chars read
 
 	if (tcsetattr(fd, TCSANOW, &tty) != 0)
 	{
@@ -109,7 +109,7 @@ int readvalues(int fd)
 	unsigned char buf[22];
 	int rdlen;
 
-	rdlen = read(fd, buf, 22);          // read remaining message from device
+	rdlen = read(fd, buf, 22);														// read remaining message from device
 
 	if (rdlen < 22)
 	{
@@ -117,14 +117,20 @@ int readvalues(int fd)
 		return -1;
 	}
 	/* calculate parameter values from returned chars
-     * and store in global variables
-     */
-	voltage = (float)((buf[0] << 8) | buf[1]) / 10;
-	current = (float)((buf[4] << 24) | (buf[5] << 16) | (buf[2] << 8) | buf[3]) /1000;
-	power = (float)((buf[8] << 24) | (buf[9] << 16) | (buf[6] << 8) | buf[7]) /10000;
-	energy = (float)((buf[12] << 24) | (buf[13] << 16) | (buf[10] << 8) | buf[11]) /1000;
-	frequency = (float)((buf[14] << 8) | buf[15]) /10;
-	factor = (float)((buf[16] << 8) | buf[17]) /100;
+	 * and store in global variables
+	 */
+	voltage = (float) ((buf[0] << 8) | buf[1]) / 10;
+	current =
+		(float) ((buf[4] << 24) | (buf[5] << 16) | (buf[2] << 8) | buf[3])
+		/ 1000;
+	power =
+		(float) ((buf[8] << 24) | (buf[9] << 16) | (buf[6] << 8) | buf[7])
+		/ 10000;
+	energy =
+		(float) ((buf[12] << 24) | (buf[13] << 16) | (buf[10] << 8) |
+				 buf[11]) / 1000;
+	frequency = (float) ((buf[14] << 8) | buf[15]) / 10;
+	factor = (float) ((buf[16] << 8) | buf[17]) / 100;
 	alarmset = (buf[18] << 8) | buf[19];
 	return 0;
 }
@@ -223,17 +229,18 @@ int setaddress(int fd, int newaddress)
 int sendcommand(int fd)
 {
 	// unsigned char xstr[]={0xF8, 0x04, 0x00, 0x00, 0x00, 0x0A, 0x64, 0x64};
-	unsigned char xstr[] = {0x01, 0x04, 0x00, 0x00, 0x00, 0x0A, 0x70, 0x0D};
-    int xlen = 8;               // length of command string to send (inc CRC)
+	unsigned char xstr[] =
+		{ 0x01, 0x04, 0x00, 0x00, 0x00, 0x0A, 0x70, 0x0D };
+	int xlen = 8;				// length of command string to send (inc CRC)
 	int wrlen;					// number of chars actually written to serial port
 	int count;					// generic counter for loops
 	int rdlen;					// number of chars actually read from serial port
 	unsigned char buf[4];		// temp storage for returned chars read from port
 
 	/* send command to power unit */
-	wrlen = write(fd, xstr, xlen); // write command string to device 
+	wrlen = write(fd, xstr, xlen);													// write command string to device 
 
-	if (wrlen != xlen)          // Not all chars were written, so write error
+	if (wrlen != xlen)																// Not all chars were written, so write error
 	{
 		fprintf(stderr, "Error from write: %d, %d\n", wrlen, errno);
 		return -1;
@@ -272,44 +279,45 @@ int sendcommand(int fd)
  * Create initial logfile on startup, then new logfiles every period (24 hrs?)
  * name logfiles with timestamp
  */
-#define TIMEFILESTRING "pm-%Y-%m-%dT%H%M"           // time string in format suitable for filename (ISO 8601)
-#define TIMELOGSTRING "%Y:%b:%d:%a:%X"              // time string in format suitable for log entry
+#define TIMEFILESTRING "pm-%Y-%m-%dT%H%M"											// time string in format suitable for filename (ISO 8601)
+#define TIMELOGSTRING "%Y:%b:%d:%a:%X"												// time string in format suitable for log entry
 
 void logloop(int fd)
 {
-    char timestamp[26];                                                             // buffer to hold timestamp string
-    FILE *logfile;                                                                  // file pointer for log file
-    pid_t pid;                                      // pid of process (parent or child)
+	char timestamp[26];			// buffer to hold timestamp string
+	FILE *logfile;				// file pointer for log file
+	pid_t pid;					// pid of process (parent or child)
 
-    pid = fork();                                  // fork a new process to run in background
-    if(pid < 0)                                     // fork didn't work if returns less than 0
-        perror("Fork failed!");                     // print error and exit program
+	pid = fork();																	// fork a new process to run in background
+	if (pid < 0)																	// fork didn't work if returns less than 0
+		perror("Fork failed!");														// print error and exit program
 
-    if(pid)                                         // pid > zero, so this is the parent
-    {
-        printf("Logging process running in background. PID = %d\n\n", pid);       // in parent, fork returns PID of child
-        exit(0);                                                                // child does the work now
-    }
-    /* if we get here, we should be child process */
+	if (pid)																		// pid > zero, so this is the parent
+	{
+		printf("Logging process running in background. PID = %d\n\n", pid);			// in parent, fork returns PID of child
+		exit(0);																	// child does the work now
+	}
+	/* if we get here, we should be child process */
 
-    if( signal(SIGHUP, SIG_IGN) == SIG_ERR)                                                        // ignore hangup so calling terminal can exit
-        perror("Failed to ignore SIGHUP signal");                                   // print error and exit if we can't ignore SIGHUP
+	if (signal(SIGHUP, SIG_IGN) == SIG_ERR)											// ignore hangup so calling terminal can exit
+		perror("Failed to ignore SIGHUP signal");									// print error and exit if we can't ignore SIGHUP
 
-    time_t clk = time(NULL);                                                   	// get current time
-    strftime(timestamp, 26, TIMEFILESTRING, localtime(&clk));                 // format timestamp suitable for filename and log entry
-    logfile = fopen(timestamp,"w");                                                 // create initial logfile when prog starts
-    if(logfile == NULL)                                                             // create initial logfile when prog starts
-        perror("cannot open logfile");                                              // cannot open log file for some reason
+	time_t clk = time(NULL);	// get current time
+	strftime(timestamp, 26, TIMEFILESTRING, localtime(&clk));						// format timestamp suitable for filename and log entry
+	logfile = fopen(timestamp, "w");												// create initial logfile when prog starts
+	if (logfile == NULL)															// create initial logfile when prog starts
+		perror("cannot open logfile");												// cannot open log file for some reason
 
 	while (1)																		// loop forever taking readings
 	{
-		time_t clk = time(NULL);                                                   	// get current time
-        strftime(timestamp, 26, TIMELOGSTRING, localtime(&clk));                 // format timestamp suitable for filename and log entry
+		time_t clk = time(NULL);	// get current time
+		strftime(timestamp, 26, TIMELOGSTRING, localtime(&clk));					// format timestamp suitable for filename and log entry
 		sendcommand(fd);															// send command and recieve initial ack from device
-		readvalues(fd);                                                             // read rest of data from device and present
+		readvalues(fd);																// read rest of data from device and present
 		fprintf(logfile, "%s,%.1f,%.2f,%.2f,%.2f,%.1f,%.2f\n",
-                timestamp, voltage, current, power, energy, frequency, factor);
-		fflush(logfile);    														// flush output to logfile
+				timestamp, voltage, current, power, energy, frequency,
+				factor);
+		fflush(logfile);															// flush output to logfile
 		sleep(INTERVAL);															// repeat every INTERVAL seconds
 	}
 }
@@ -347,30 +355,30 @@ int main(int argc, char *argv[])
 
 	switch (argc)																	// test for arguments
 	{
-	case 1:																	    	// no args, so just take a human readable reading and exit
+	case 1:																		// no args, so just take a human readable reading and exit
 		sendcommand(fd);															// send command and recieve initial ack from device
-		readvalues(fd);                                                             // read rest of data from device 
-		printf                                                                      // print values to stdout
-			("voltage = %f\ncurrent = %f\npower = %f\nenergy = %f\nFrequency = %f\nfactor = %f\nalarm = %x\n",
-			 voltage, current, power, energy, frequency, factor, alarmset);
+		readvalues(fd);																// read rest of data from device 
+		printf																		// print values to stdout
+			("voltage = %f\ncurrent = %f\npower = %f\nenergy = %f\nFrequency = %f\nfactor = %f\nalarm = %x\n", voltage, current, power, energy, frequency, factor, alarmset);
 		exit(0);
 
-	case 2:																	    	// only one argument, so should be "logging"
+	case 2:																		// only one argument, so should be "logging"
 		if (strcmp(argv[1], "logging") == 0)										// strcmp returns zero if strings match
 			logloop(fd);															// Function logloop() loops forever so doesn't return
-        else if (strcmp(argv[1], "newaddr") == 0)
-                perror ("new address must be specified");
-            else
-                perror("unknown argument");
+		else if (strcmp(argv[1], "newaddr") == 0)
+			perror("new address must be specified");
+		else
+			perror("unknown argument");
 
-	case 3:																	    	// address change mode - needs two arguments 
+	case 3:																		// address change mode - needs two arguments 
 		if (strcmp(argv[1], "newaddr") == 0)
 		{
 			newaddr = atoi(argv[2]);												// convert arg to int
 			if ((newaddr > 0) && (newaddr <= 7))									// second argument needs to be new address
 			{
 				// setaddress(fd,stoa(argv[2]);
-				printf("About to call setaddress() with address %d\n", newaddr);
+				printf("About to call setaddress() with address %d\n",
+					   newaddr);
 				exit(0);
 			}																		// if we get here, new address value out of range
 			perror("New address arg must be between 1 and 7");

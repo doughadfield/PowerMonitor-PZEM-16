@@ -11,7 +11,7 @@
  * use site https://crccalc.com/ to calculate CRC (MODBUS 16bit format)
  */
 
-#define INTERVAL 1																	// logging interval in seconds
+#define INTERVAL 60																	// default logging interval in seconds
 #define TERMINAL    "/dev/ttyUSB0"
 
 #include <errno.h>
@@ -282,7 +282,7 @@ int sendcommand(int fd)
 #define TIMEFILESTRING "pm-%Y-%m-%dT%H%M"											// time string in format suitable for filename (ISO 8601)
 #define TIMELOGSTRING "%Y:%b:%d:%a:%X"												// time string in format suitable for log entry
 
-void logloop(int fd)
+void logloop(int fd, int interval)
 {
 	char timestamp[26];			// buffer to hold timestamp string
 	FILE *logfile;				// file pointer for log file
@@ -311,6 +311,14 @@ void logloop(int fd)
 	while (1)																		// loop forever taking readings
 	{
 		time_t clk = time(NULL);	// get current time
+		if (clk % 86400)															// do this every so many seconds (eg 86400 = 1 day)
+		{
+			fclose(logfile);														// every time period close log and start new file
+			strftime(timestamp, 26, TIMEFILESTRING, localtime(&clk));				// format timestamp suitable for filename and log entry
+			logfile = fopen(timestamp, "w");
+			if (logfile == NULL)													// create initial logfile when prog starts
+				perror("cannot open logfile");										// cannot open log file for some reason
+		}
 		strftime(timestamp, 26, TIMELOGSTRING, localtime(&clk));					// format timestamp suitable for filename and log entry
 		sendcommand(fd);															// send command and recieve initial ack from device
 		readvalues(fd);																// read rest of data from device and present
@@ -318,9 +326,12 @@ void logloop(int fd)
 				timestamp, voltage, current, power, energy, frequency,
 				factor);
 		fflush(logfile);															// flush output to logfile
-		sleep(INTERVAL);															// repeat every INTERVAL seconds
+		sleep(interval);															// repeat every specified number of seconds
 	}
 }
+
+
+
 
 /*
  * perror() prints passed error string, then usage string, and exits program
@@ -328,7 +339,7 @@ void logloop(int fd)
 void perror(const char *errstring)
 {
 	fprintf(stderr,
-			"%s\nUsage: %s [logging|newaddr] [<new address> (1-7)]\n",
+			"%s\nUsage: %s [logging|newaddr] [<new address> (1-7)|<logging interval> (seconds)]\n",
 			errstring, progname);
 	exit(1);
 }
@@ -364,7 +375,7 @@ int main(int argc, char *argv[])
 
 	case 2:																		// only one argument, so should be "logging"
 		if (strcmp(argv[1], "logging") == 0)										// strcmp returns zero if strings match
-			logloop(fd);															// Function logloop() loops forever so doesn't return
+			logloop(fd, INTERVAL);													// Function logloop() loops forever so doesn't return
 		else if (strcmp(argv[1], "newaddr") == 0)
 			perror("new address must be specified");
 		else
@@ -383,6 +394,9 @@ int main(int argc, char *argv[])
 			}																		// if we get here, new address value out of range
 			perror("New address arg must be between 1 and 7");
 		}																			// if we get here, argument didn't match
+		if (strcmp(argv[1], "logging") == 0)										// we've specified an argument to "logging" mode
+			logloop(fd, atoi(argv[2]));												// run logging with specified argument
+
 		perror("Unknown argument");
 
 	default:

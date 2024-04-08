@@ -11,9 +11,9 @@
  * use site https://crccalc.com/ to calculate CRC (MODBUS 16bit format)
  */
 
-// #define DEBUG																   // uncomment to enable DEBUG code
+// #define DEBUG                                                                   // uncomment to enable DEBUG code
 #define INTERVAL 60                                                            // default logging interval in seconds
-#define TERMINAL    "/dev/ttyUSB0"											   // Usual device name for RS485 USB dongle
+#define TERMINAL    "/dev/ttyUSB0"                                             // Usual device name for RS485 USB dongle
 
 #include <errno.h>
 #include <fcntl.h>
@@ -54,7 +54,8 @@ usage (const char *errstring)
 /*
  * Open serial port and set up
  */
-int openserial (char *portname)
+int
+openserial (char *portname)
 {
     int fd;
     struct termios tty;
@@ -66,28 +67,29 @@ int openserial (char *portname)
         return -1;
     }
 
-    if (tcgetattr (fd, &tty) < 0)											   // get attributes from port into termios struct
+    if (tcgetattr (fd, &tty) < 0)                                              // get attributes from port into termios struct
     {
         perror ("Error getting attributes from serial port");
         return -1;
     }
 
-    cfsetospeed (&tty, (speed_t) B9600);									   // set baud rate for read and write
+    cfsetospeed (&tty, (speed_t) B9600);                                       // set baud rate for read and write
     cfsetispeed (&tty, (speed_t) B9600);
 
 
-    tty.c_cflag |= (CLOCAL | CREAD );                                     	   // enable read, disable modem signals
-    tty.c_cflag &= ~CSIZE;													   // Clear the size bits
-    tty.c_cflag |= CS8;                                             		   // Now set just the 8 bit size bit
+    tty.c_cflag |= (CLOCAL | CREAD);                                           // enable read, disable modem signals
+    tty.c_cflag &= ~CSIZE;                                                     // Clear the size bits
+    tty.c_cflag |= CS8;                                                        // Now set just the 8 bit size bit
     tty.c_cflag &= ~PARENB;                                                    // no parity
     tty.c_cflag &= ~CSTOPB;                                                    // one stop bit
     tty.c_cflag &= ~CRTSCTS;                                                   // no hardware flow control
 
     /*
-	 * Must use non-canonical mode with PZEM-16 device
-	 * (character-at-a-time processing, rather than line based processing)
-	 */
-    tty.c_iflag &= ~(IGNBRK | BRKINT | PARMRK | ISTRIP | INLCR | IGNCR | ICRNL | IXON);
+     * Must use non-canonical mode with PZEM-16 device
+     * (character-at-a-time processing, rather than line based processing)
+     */
+    tty.c_iflag &=
+        ~(IGNBRK | BRKINT | PARMRK | ISTRIP | INLCR | IGNCR | ICRNL | IXON);
     tty.c_lflag &= ~(ECHO | ECHONL | ICANON | ISIG | IEXTEN);
     tty.c_oflag &= ~OPOST;
 
@@ -115,49 +117,51 @@ setaddress (int fd, int newaddress)
 /* 
  * Array of command strings to set particular addresses (needs specific CRC bytes for each command)
  */
-	static
-    unsigned char xstr[7][8] = { { 0xF8, 0x06, 0x00, 0x02, 0x00, 0x01, 0xFD, 0xA3 }, // set address to 0x01
-                                 { 0xF8, 0x06, 0x00, 0x02, 0x00, 0x02, 0xBD, 0xA2 }, // set address to 0x02
-                                 { 0xF8, 0x06, 0x00, 0x02, 0x00, 0x03, 0x7C, 0x62 }, // set address to 0x03
-                                 { 0xF8, 0x06, 0x00, 0x02, 0x00, 0x04, 0x3D, 0xA0 }, // set address to 0x04
-                                 { 0xF8, 0x06, 0x00, 0x02, 0x00, 0x05, 0xFC, 0x60 }, // set address to 0x05
-                                 { 0xF8, 0x06, 0x00, 0x02, 0x00, 0x06, 0xBC, 0x61 }, // set address to 0x06
-                                 { 0xF8, 0x06, 0x00, 0x02, 0x00, 0x07, 0x7D, 0xA1 } }; // set address to 0x07
-    int xlen = 8;													           // command length will always be 8 chars
-    unsigned char buf[8];													   // buffer for read chars back from device
-    int count;																   // generic loop counter
-    int wlen;														           // number of bytes actually written to device
-    int rdlen;														           // number of bytes read back from device
+    static unsigned char xstr[7][8] = { {0xF8, 0x06, 0x00, 0x02, 0x00, 0x01, 0xFD, 0xA3},   // set address to 0x01
+    {0xF8, 0x06, 0x00, 0x02, 0x00, 0x02, 0xBD, 0xA2},                          // set address to 0x02
+    {0xF8, 0x06, 0x00, 0x02, 0x00, 0x03, 0x7C, 0x62},                          // set address to 0x03
+    {0xF8, 0x06, 0x00, 0x02, 0x00, 0x04, 0x3D, 0xA0},                          // set address to 0x04
+    {0xF8, 0x06, 0x00, 0x02, 0x00, 0x05, 0xFC, 0x60},                          // set address to 0x05
+    {0xF8, 0x06, 0x00, 0x02, 0x00, 0x06, 0xBC, 0x61},                          // set address to 0x06
+    {0xF8, 0x06, 0x00, 0x02, 0x00, 0x07, 0x7D, 0xA1}
+    };                                                                         // set address to 0x07
+    int xlen = 8;                                                              // command length will always be 8 chars
+    unsigned char buf[8];                                                      // buffer for read chars back from device
+    int count;                                                                 // generic loop counter
+    int wlen;                                                                  // number of bytes actually written to device
+    int rdlen;                                                                 // number of bytes read back from device
 
-	newaddress -=1;		    												   // newaddress indexes into array, so zero start
+    newaddress -= 1;                                                           // newaddress indexes into array, so zero start
 
-	printf("Writing:  ");
+    printf ("Writing:  ");
     for (count = 0; count < xlen; count++)
-		printf("%X ", xstr[newaddress][count]);
-	printf(" to device.\nExpecting the same bytes to be returned:\n");
+        printf ("%X ", xstr[newaddress][count]);
+    printf (" to device.\nExpecting the same bytes to be returned:\n");
 
     wlen = write (fd, xstr[newaddress], xlen);
     if (wlen != xlen)
     {
-        fprintf (stderr, "Error: written %d chars, expected %d\n", wlen, xlen);
+        fprintf (stderr, "Error: written %d chars, expected %d\n", wlen,
+                 xlen);
         return -1;
     }
     tcdrain (fd);                                                              // wait for all characters to write
 
     rdlen = read (fd, buf, 8);
 #ifdef DEBUG
-    printf("DEBUG: read %d chars back from device when setting new addr\n", rdlen);
-#endif // DEBUG
+    printf ("DEBUG: read %d chars back from device when setting new addr\n",
+            rdlen);
+#endif                                                                         // DEBUG
     if (rdlen == 0)
     {
         fprintf (stderr, "No chars received after address change write\n");
         return -1;
     }
 
-	printf("\nReceived: ");
+    printf ("\nReceived: ");
     for (count = 0; count < rdlen; count++)
-		printf("%X ", xstr[newaddress][count]);
-	printf(" back from device.\n\n");
+        printf ("%X ", xstr[newaddress][count]);
+    printf (" back from device.\n\n");
     return 0;
 }
 
@@ -184,9 +188,15 @@ readvalues (int fd)
      * and store in global variables
      */
     voltage = (float) ((buf[0] << 8) | buf[1]) / 10;
-    current = (float) ((buf[4] << 24) | (buf[5] << 16) | (buf[2] << 8) | buf[3]) / 1000;
-    power = (float) ((buf[8] << 24) | (buf[9] << 16) | (buf[6] << 8) | buf[7]) / 10000;
-    energy = (float) ((buf[12] << 24) | (buf[13] << 16) | (buf[10] << 8) | buf[11]) / 1000;
+    current =
+        (float) ((buf[4] << 24) | (buf[5] << 16) | (buf[2] << 8) | buf[3]) /
+        1000;
+    power =
+        (float) ((buf[8] << 24) | (buf[9] << 16) | (buf[6] << 8) | buf[7]) /
+        10000;
+    energy =
+        (float) ((buf[12] << 24) | (buf[13] << 16) | (buf[10] << 8) | buf[11])
+        / 1000;
     frequency = (float) ((buf[14] << 8) | buf[15]) / 10;
     factor = (float) ((buf[16] << 8) | buf[17]) / 100;
     alarmset = (buf[18] << 8) | buf[19];
@@ -277,7 +287,7 @@ logloop (int fd, int interval)
 
     pid = fork ();                                                             // fork a new process to run in background
     if (pid < 0)                                                               // fork didn't work if returns less than 0
-        usage ("Fork failed!");                                               // print error and exit program
+        usage ("Fork failed!");                                                // print error and exit program
 
     if (pid)                                                                   // pid > zero, so this is the parent
     {
@@ -287,33 +297,37 @@ logloop (int fd, int interval)
     /* if we get here, we should be child process */
 
     if (signal (SIGHUP, SIG_IGN) == SIG_ERR)                                   // ignore hangup so calling terminal can exit
-        usage ("Failed to ignore SIGHUP signal");                             // print error and exit if we can't ignore SIGHUP
+        usage ("Failed to ignore SIGHUP signal");                              // print error and exit if we can't ignore SIGHUP
 
     time_t clk = time (NULL);                                                  // get current time
     strftime (timestamp, 26, TIMEFILESTRING, localtime (&clk));                // format timestamp suitable for filename and log entry
     logfile = fopen (timestamp, "w");                                          // create initial logfile when prog starts
     if (logfile == NULL)                                                       // create initial logfile when prog starts
-        usage ("cannot open logfile");                                        // cannot open log file for some reason
+        usage ("cannot open logfile");                                         // cannot open log file for some reason
 
     while (1)                                                                  // loop forever taking readings
     {
         time_t clk = time (NULL);                                              // get current time
-        if (clk % 86400 == 0)                                                  // do this every so many seconds (eg 86400 = 1 day)
+        if ((clk % 86400) == 0)                                                // do this every so many seconds (eg 86400 = 1 day)
         {
             fclose (logfile);                                                  // every time period close log and start new file
             strftime (timestamp, 26, TIMEFILESTRING, localtime (&clk));        // format timestamp suitable for filename and log entry
             logfile = fopen (timestamp, "w");
             if (logfile == NULL)                                               // create initial logfile when prog starts
-                usage ("cannot open logfile");                                // cannot open log file for some reason
+                usage ("cannot open logfile");                                 // cannot open log file for some reason
         }
-        strftime (timestamp, 26, TIMELOGSTRING, localtime (&clk));             // format timestamp suitable for filename and log entry
-        sendcommand (fd);                                                      // send command and recieve initial ack from device
-        readvalues (fd);                                                       // read rest of data from device and present
-        fprintf (logfile, "%s,%.1f,%.2f,%.2f,%.2f,%.1f,%.2f\n",
-                 timestamp, voltage, current, power, energy, frequency,
-                 factor);
-        fflush (logfile);                                                      // flush output to logfile
-        sleep (interval);                                                      // repeat every specified number of seconds
+        if ((clk % interval) == 0)                                             // we've reached an "inverval" of seconds
+        {
+
+            strftime (timestamp, 26, TIMELOGSTRING, localtime (&clk));         // format timestamp suitable for filename and log entry
+            sendcommand (fd);                                                  // send command and recieve initial ack from device
+            readvalues (fd);                                                   // read rest of data from device and present
+            fprintf (logfile, "%s,%.1f,%.2f,%.2f,%.2f,%.1f,%.2f\n",
+                     timestamp, voltage, current, power, energy, frequency,
+                     factor);
+            fflush (logfile);                                                  // flush output to logfile
+        }
+        sleep (1);                                                             // wake up every second to test for intervals
     }
 }
 
@@ -346,8 +360,7 @@ main (int argc, char *argv[])
         sendcommand (fd);                                                      // send command and recieve initial ack from device
         readvalues (fd);                                                       // read rest of data from device 
         printf                                                                 // print values to stdout
-            ("voltage = %f\ncurrent = %f\npower = %f\nenergy = %f\nFrequency = %f\nfactor = %f\nalarm = %x\n",
-                                                       voltage, current, power, energy, frequency, factor, alarmset);
+            ("voltage = %f\ncurrent = %f\npower = %f\nenergy = %f\nFrequency = %f\nfactor = %f\nalarm = %x\n", voltage, current, power, energy, frequency, factor, alarmset);
         exit (0);
 
     case 2:                                                                   // only one argument, so should be "logging"
@@ -364,7 +377,7 @@ main (int argc, char *argv[])
             newaddr = atoi (argv[2]);                                          // convert arg to int
             if ((newaddr > 0) && (newaddr <= 7))                               // second argument needs to be new address
             {
-                setaddress(fd,atoi(argv[2]));
+                setaddress (fd, atoi (argv[2]));
                 exit (0);
             }                                                                  // if we get here, new address value out of range
             usage ("New address arg must be between 1 and 7");
@@ -379,3 +392,4 @@ main (int argc, char *argv[])
     }
     usage ("Should never get here");
 }
+

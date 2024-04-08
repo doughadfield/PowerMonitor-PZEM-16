@@ -12,7 +12,8 @@
  */
 
 // #define DEBUG                                                                   // uncomment to enable DEBUG code
-#define INTERVAL 60                                                            // default logging interval in seconds
+#define LOGINTERVAL 60                                                         // default logging interval in seconds
+#define FILEINTERVAL 86400                                                     // Default log rotation interval (1 day)
 #define TERMINAL    "/dev/ttyUSB0"                                             // Usual device name for RS485 USB dongle
 
 #include <errno.h>
@@ -308,7 +309,7 @@ logloop (int fd, int interval)
     while (1)                                                                  // loop forever taking readings
     {
         time_t clk = time (NULL);                                              // get current time
-        if ((clk % 86400) == 0)                                                // do this every so many seconds (eg 86400 = 1 day)
+        if ((clk % FILEINTERVAL) == 0)                                         // do this every so many seconds (eg 86400 = 1 day)
         {
             fclose (logfile);                                                  // every time period close log and start new file
             strftime (timestamp, 26, TIMEFILESTRING, localtime (&clk));        // format timestamp suitable for filename and log entry
@@ -365,7 +366,7 @@ main (int argc, char *argv[])
 
     case 2:                                                                   // only one argument, so should be "logging"
         if (strcmp (argv[1], "logging") == 0)                                  // strcmp returns zero if strings match
-            logloop (fd, INTERVAL);                                            // Function logloop() loops forever so doesn't return
+            logloop (fd, LOGINTERVAL);                                         // Function logloop() loops forever so doesn't return
         else if (strcmp (argv[1], "newaddr") == 0)
             usage ("new address must be specified");
         else
@@ -392,4 +393,3 @@ main (int argc, char *argv[])
     }
     usage ("Should never get here");
 }
-

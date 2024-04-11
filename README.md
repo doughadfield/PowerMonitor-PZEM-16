@@ -1,23 +1,18 @@
 # PowerMonitorPZEM
 Read data from PZEM-016 power monitor module onto raspberry pi
 
-new logfiles are created every period (24 hours)
+new logfiles are created at 11:30pm (BST) or 10:30pm (GMT) every evening
 Logfiles are created in current working directory, and named with timestamp
 
 USAGE:
+$ pm [options] [<serial port device>]
 
-$ pm (with no arguments)
-    - prints immediate readings to stdout
+options:
+    -l           = forks background process to log periodically to daily logfiles
+    -r           = reset energy accumulator on device
+    -a <address> = set address of device (command sent via universal address 0xF8)
+    -d <address> = specify device address to operate on (default 0xF8
+    -p <period>  = logging period in seconds (default 60 seconds)
+    -h           = help (prints this message)
 
-$ pm logging
-    - forks a background process to log to auto-generated logfiles
-        one reading per minute; logfiles changed every 24 hrs
-
-$ pm logging <period>
-    - as above but set logging period (in seconds)
-
-$ pm newaddr <address>
-    - sets address of device to <address>
-        range of addresses is 1-7
-        NOTE: ensure only ONE device is on the RS485 bus when setting address
-
+command with no arguments prints immediate readings from device

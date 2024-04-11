@@ -11,7 +11,7 @@
  * use site https://crccalc.com/ to calculate CRC (MODBUS 16bit format)
  */
 
-// #define DEBUG                                                                  // uncomment to enable DEBUG code
+// #define DEBUG                                                               // uncomment to enable DEBUG code
 
 #ifdef DEBUG
 #define LOGINTERVAL 5                                                          // DEBUG logging interval in seconds
@@ -21,8 +21,8 @@
 #define LOGINTERVAL 60                                                         // default logging interval in seconds
 #define FILEINTERVAL 86400                                                     // Default log rotation interval (1 day)
 #define FILEINTOFFSET 81000                                                    // Offset in seconds after midnight for log change
-																			   // (81000 = 22 1/2 hours, to change at 11:30pm BST)
-#endif // DEBUG
+                                                                               // (81000 = 22 1/2 hours, to change at 11:30pm BST)
+#endif                                                                         // DEBUG
 
 #define TERMINAL    "/dev/ttyUSB0"                                             // Usual device name for RS485 USB dongle
 
@@ -42,22 +42,30 @@
  */
 char *progname;                                                                // holds our program name (argv[0]) globally
 
-double voltage;                                                                 // values read from device
+double voltage;                                                                // values read from device
 double current;
 double power;
 double energy;
 double frequency;
 double factor;
 unsigned int alarmset;
+unsigned char buf[26];                                                         // read buffer for bytes read from serial port
 
 /*
  * usage() prints passed error string, then usage string, and exits program
  */
-void usage (const char *errstring)
+void
+usage (const char *errstring)
 {
-    fprintf (stderr,
-             "%s\nUsage: %s [logging|newaddr|reset] [<new address> (1-7)|<logging interval> (seconds)]\n",
-             errstring, progname);
+    if (errstring != NULL)
+        fprintf (stderr, "%s\n", errstring);
+    fprintf (stderr, "Usage: %s [options] [<serial port device>]\nOptions:\
+\n    -l           = forks background process to log periodically to daily logfiles\
+\n    -r           = reset energy accumulator on device\
+\n    -a <address> = set address of device (command sent via universal address 0xF8)\
+\n    -d <address> = specify device address to operate on (default 0xF8)\
+\n    -p <period>  = logging period in seconds (default 60 seconds)\
+\n    -h           = help (print this message)\n\n", progname);
     exit (1);
 }
 
@@ -65,7 +73,8 @@ void usage (const char *errstring)
 /*
  * Open serial port and set up
  */
-int openserial (char *portname)
+int
+openserial (char *portname)
 {
     int fd;
     struct termios tty;
@@ -119,39 +128,40 @@ int openserial (char *portname)
 
 
 /*
- * set address of a new device, using one of the following command strings:
+ * set address of a new device,
+ * using the universal address (0xF8) to access the device
+ * therefore only one device must be active on the bus 
  */
-int setaddress (int fd, int newaddress)
+int
+setaddress (int fd, int newaddress)
 {
-	/* 
-	 * Array of command strings to set particular addresses (needs specific CRC bytes for each command)
-	 */
-    static unsigned char xstr[7][8] = 
-    { {0xF8, 0x06, 0x00, 0x02, 0x00, 0x01, 0xFD, 0xA3},                        // set address to 0x01
-      {0xF8, 0x06, 0x00, 0x02, 0x00, 0x02, 0xBD, 0xA2},                        // set address to 0x02
-      {0xF8, 0x06, 0x00, 0x02, 0x00, 0x03, 0x7C, 0x62},                        // set address to 0x03
-      {0xF8, 0x06, 0x00, 0x02, 0x00, 0x04, 0x3D, 0xA0},                        // set address to 0x04
-      {0xF8, 0x06, 0x00, 0x02, 0x00, 0x05, 0xFC, 0x60},                        // set address to 0x05
-      {0xF8, 0x06, 0x00, 0x02, 0x00, 0x06, 0xBC, 0x61},                        // set address to 0x06
-      {0xF8, 0x06, 0x00, 0x02, 0x00, 0x07, 0x7D, 0xA1} };                      // set address to 0x07
+    /* 
+     * Array of command strings to set particular addresses (needs specific CRC bytes for each command)
+     */
+    static unsigned char xstr[7][8] = { {0xF8, 0x06, 0x00, 0x02, 0x00, 0x01, 0xFD, 0xA3},   // set address to 0x01
+                                        {0xF8, 0x06, 0x00, 0x02, 0x00, 0x02, 0xBD, 0xA2},   // set address to 0x02
+                                        {0xF8, 0x06, 0x00, 0x02, 0x00, 0x03, 0x7C, 0x62},   // set address to 0x03
+                                        {0xF8, 0x06, 0x00, 0x02, 0x00, 0x04, 0x3D, 0xA0},   // set address to 0x04
+                                        {0xF8, 0x06, 0x00, 0x02, 0x00, 0x05, 0xFC, 0x60},   // set address to 0x05
+                                        {0xF8, 0x06, 0x00, 0x02, 0x00, 0x06, 0xBC, 0x61},   // set address to 0x06
+                                        {0xF8, 0x06, 0x00, 0x02, 0x00, 0x07, 0x7D, 0xA1} }; // set address to 0x07
     int xlen = 8;                                                              // command length will always be 8 chars
-    unsigned char buf[8];                                                      // buffer for read chars back from device
     int count;                                                                 // generic loop counter
     int wlen;                                                                  // number of bytes actually written to device
     int rdlen;                                                                 // number of bytes read back from device
 
     newaddress -= 1;                                                           // newaddress indexes into array, so zero start
 
+#ifdef DEBUG
     printf ("Writing:  ");
     for (count = 0; count < xlen; count++)
         printf ("%X ", xstr[newaddress][count]);
     printf (" to device.\nExpecting the same bytes to be returned:\n");
-
+#endif                                                                         // DEBUG
     wlen = write (fd, xstr[newaddress], xlen);
     if (wlen != xlen)
     {
-        fprintf (stderr, "Error: written %d chars, expected %d\n", wlen,
-                 xlen);
+        fprintf (stderr, "Error: write to device failed.\n");
         return -1;
     }
     tcdrain (fd);                                                              // wait for all characters to write
@@ -160,17 +170,17 @@ int setaddress (int fd, int newaddress)
 #ifdef DEBUG
     printf ("DEBUG: read %d chars back from device when setting new addr\n",
             rdlen);
-#endif                                                                         // DEBUG
-    if (rdlen == 0)
-    {
-        fprintf (stderr, "No chars received after address change write\n");
-        return -1;
-    }
-
     printf ("\nReceived: ");
     for (count = 0; count < rdlen; count++)
         printf ("%X ", xstr[newaddress][count]);
     printf (" back from device.\n\n");
+#endif                                                                         // DEBUG
+    if (rdlen == 0)
+    {
+        fprintf (stderr,
+                 "Error: address change failed - no response from device.\n");
+        return -1;
+    }
     return 0;
 }
 
@@ -180,9 +190,9 @@ int setaddress (int fd, int newaddress)
  * This function should really put the result values into a structure,
  * but I'm lazy and just used separate variables
  */
-int readvalues (int fd)
+int
+readvalues (int fd)
 {
-    unsigned char buf[22];
     int rdlen;
 
     rdlen = read (fd, buf, 22);                                                // read remaining message from device
@@ -224,24 +234,24 @@ int readvalues (int fd)
  * (all devices on bus will respond, so only use if a single device on bus)
  * Most purchased PZEM-16 devices are shipped with address 0x01
  */
-int sendcommand (int fd, int device)
+int
+sendcommand (int fd, int device)
 {
-    unsigned char xstr[8][8] = { {0xF8,0x04,0x00,0x00,0x00,0x0A,0x64,0x64},    // send to universal address (only one device on bus)
-                                 {0x01,0x04,0x00,0x00,0x00,0x0A,0x70,0x0D},    // send to device address 1 on bus
-                                 {0x02,0x04,0x00,0x00,0x00,0x0A,0x70,0x3E},
-                                 {0x03,0x04,0x00,0x00,0x00,0x0A,0x71,0xEF},
-                                 {0x04,0x04,0x00,0x00,0x00,0x0A,0x70,0x58},
-                                 {0x05,0x04,0x00,0x00,0x00,0x0A,0x71,0x89},
-                                 {0x06,0x04,0x00,0x00,0x00,0x0A,0x71,0xBA},
-                                 {0x07,0x04,0x00,0x00,0x00,0x0A,0x70,0x6B} };
+    unsigned char xstr[8][8] = { {0xF8, 0x04, 0x00, 0x00, 0x00, 0x0A, 0x64, 0x64}, // send to universal address (only one device on bus)
+                                 {0x01, 0x04, 0x00, 0x00, 0x00, 0x0A, 0x70, 0x0D}, // send to device address 1 on bus
+                                 {0x02, 0x04, 0x00, 0x00, 0x00, 0x0A, 0x70, 0x3E},
+                                 {0x03, 0x04, 0x00, 0x00, 0x00, 0x0A, 0x71, 0xEF},
+                                 {0x04, 0x04, 0x00, 0x00, 0x00, 0x0A, 0x70, 0x58},
+                                 {0x05, 0x04, 0x00, 0x00, 0x00, 0x0A, 0x71, 0x89},
+                                 {0x06, 0x04, 0x00, 0x00, 0x00, 0x0A, 0x71, 0xBA},
+                                 {0x07, 0x04, 0x00, 0x00, 0x00, 0x0A, 0x70, 0x6B} };
     int xlen = 8;                                                              // length of command string to send (inc CRC)
     int wrlen;                                                                 // number of chars actually written to serial port
     int count;                                                                 // generic counter for loops
     int rdlen;                                                                 // number of chars actually read from serial port
-    unsigned char buf[4];                                                      // temp storage for returned chars read from port
 
     /* send command to power unit */
-    wrlen = write (fd, xstr[device], xlen);                                            // write command string to device 
+    wrlen = write (fd, xstr[device], xlen);                                    // write command string to device 
 
     if (wrlen != xlen)                                                         // Not all chars were written, so write error
     {
@@ -255,11 +265,13 @@ int sendcommand (int fd, int device)
     rdlen = read (fd, buf, 3);
     if (rdlen != 3)
     {
-        fprintf (stderr, "error: read returned length %d\n", rdlen);
+        fprintf (stderr, "error: read from device returned %d bytes.\n",
+                 rdlen);
         for (count = 0; count < rdlen; count++)
         {
             fprintf (stderr, "char %d = %x\n", count, buf[count]);
         }
+        exit (-1);
     }
 
     switch (buf[1])
@@ -278,19 +290,22 @@ int sendcommand (int fd, int device)
 
 
 /*
-* alarm handler does nothing - it's only here to break out of sleep in the log loop
+* alarm handler does nothing
+* it's only here to break out of sleep in the log loop
 */
-void alarm_handler(int sig)
+void
+alarm_handler (int sig)
 {
 #ifdef DEBUG
-	printf("In alarm handler - sig = %d.\n", sig);
-#endif // DEBUG
+    printf ("In alarm handler - sig = %d.\n", sig);
+#endif                                                                         // DEBUG
 }
 
 /*
  * initialise signal timer alarm
  */
-void timer_init (void)
+void
+timer_init (void)
 {
     static sigset_t block;                                                     // structure to hold signal set
 
@@ -320,19 +335,19 @@ void timer_init (void)
  * as well as a command line arg to reset manually
  * parameters are file descriptor (fd) and device address
  */
-int reset_energy(int fd, int device)
+int
+reset_energy (int fd, int device)
 {
-    unsigned char xstr[8][4] = { { 0xF8,0x42,0xC2,0x41 },                      // command to reset energy counter
-                                 { 0x01,0x42,0x80,0x11 },                      // array of commands for device addresses 1-7
-                                 { 0x02,0x42,0x80,0xE1 },                      // and universal address
-                                 { 0x03,0x42,0x81,0x71 },
-                                 { 0x04,0x42,0x83,0x41 },
-                                 { 0x05,0x42,0x82,0xD1 },
-                                 { 0x06,0x42,0x82,0x21 },
-                                 { 0x07,0x42,0x83,0xB1 } };
-#define BUFLEN 8                                                               // length of read buffer (sufficient for error reply)
+    unsigned char xstr[8][4] = { {0xF8, 0x42, 0xC2, 0x41},                     // command to reset energy counter
+                                 {0x01, 0x42, 0x80, 0x11},                     // array of commands for device addresses 1-7
+                                 {0x02, 0x42, 0x80, 0xE1},                     // and universal address
+                                 {0x03, 0x42, 0x81, 0x71},
+                                 {0x04, 0x42, 0x83, 0x41},
+                                 {0x05, 0x42, 0x82, 0xD1},
+                                 {0x06, 0x42, 0x82, 0x21},
+                                 {0x07, 0x42, 0x83, 0xB1}
+    };
     int xlen = 4;                                                              // command length will always be 4 chars
-    unsigned char buf[BUFLEN];                                                 // buffer for read chars back from device
     int count;                                                                 // generic loop counter
     int wlen;                                                                  // number of bytes actually written to device
     int rdlen;                                                                 // number of bytes read back from device
@@ -342,7 +357,7 @@ int reset_energy(int fd, int device)
     for (count = 0; count < xlen; count++)
         printf ("%X ", xstr[device][count]);
     printf (" to device.\nExpecting the same bytes to be returned:\n");
-#endif // DEBUG
+#endif                                                                         // DEBUG
 
     wlen = write (fd, xstr[device], xlen);
     if (wlen != xlen)
@@ -353,19 +368,20 @@ int reset_energy(int fd, int device)
     }
     tcdrain (fd);                                                              // wait for all characters to write
 
-    rdlen = read (fd, buf, BUFLEN);
+    rdlen = read (fd, buf, 4);
 #ifdef DEBUG
-    printf ("DEBUG: read %d chars back from device when setting new addr\n",
+    printf ("DEBUG: read %d chars back from device when resetting energy\n",
             rdlen);
     printf ("\nReceived: ");
     for (count = 0; count < rdlen; count++)
         printf ("%X ", xstr[device][count]);
     printf (" back from device.\n\n");
-#endif // DEBUG
+#endif                                                                         // DEBUG
 
     if (rdlen == 0)
     {
-        fprintf (stderr, "No chars received after address change write\n");
+        fprintf (stderr,
+                 "error: no chars received when resetting energy counter.\n");
         return -1;
     }
     return 0;
@@ -381,7 +397,8 @@ int reset_energy(int fd, int device)
 #define TIMEFILESTRING "pm-%Y-%m-%dT%H%M"                                      // time string in format suitable for filename (ISO 8601)
 #define TIMELOGSTRING "%Y:%b:%d:%a:%X"                                         // time string in format suitable for log entry
 
-void logloop (int fd, int interval)
+void
+logloop (int fd, int device, int interval)
 {
     char timestamp[26];                                                        // buffer to hold timestamp string
     FILE *logfile;                                                             // file pointer for log file
@@ -407,7 +424,7 @@ void logloop (int fd, int interval)
     if (logfile == NULL)                                                       // create initial logfile when prog starts
         usage ("cannot open logfile");                                         // cannot open log file for some reason
 
-    timer_init();                                                              // Start SIGALRM timer interrupts every second
+    timer_init ();                                                             // Start SIGALRM timer interrupts every second
 
     while (1)                                                                  // loop forever taking readings
     {
@@ -415,28 +432,29 @@ void logloop (int fd, int interval)
         if ((clk % FILEINTERVAL) == FILEINTOFFSET)                             // do this every day (modulo 86400 secs) with offset for time of day
         {
 #ifdef DEBUG
-			printf("Switching Logfile\n");
-#endif // DEBUG
+            printf ("Switching Logfile\n");
+#endif                                                                         // DEBUG
             fclose (logfile);                                                  // every time period close log and start new file
             strftime (timestamp, 26, TIMEFILESTRING, localtime (&clk));        // format timestamp suitable for filename and log entry
             logfile = fopen (timestamp, "w");
             if (logfile == NULL)                                               // create initial logfile when prog starts
                 usage ("cannot open logfile");                                 // cannot open log file for some reason
-			reset_energy(fd, 1);                                               // reset the energy accumulation counter on device
+            reset_energy (fd, 1);                                              // reset the energy accumulation counter on device
         }
 
         if ((clk % interval) == 0)                                             // we've reached an "inverval" of seconds
         {
             strftime (timestamp, 26, TIMELOGSTRING, localtime (&clk));         // format timestamp suitable for filename and log entry
 #ifdef DEBUG
-			printf("DEBUG: %s\n", timestamp);
-			fprintf(logfile, "DEBUG: %s\n", timestamp);
+            printf ("DEBUG: %s\n", timestamp);
+            fprintf (logfile, "DEBUG: %s\n", timestamp);
 #else
-            sendcommand (fd, 1);                                               // send command and recieve initial ack from device
+            sendcommand (fd, device);                                          // send command and recieve initial ack from device
             readvalues (fd);                                                   // read rest of data from device and present
             fprintf (logfile, "%s,%05.1f,%04.1f,%04.1f,%05.1f,%.1f,%.2f\n",
-                     timestamp, voltage, current, power, energy, frequency, factor);
-#endif // DEBUG
+                     timestamp, voltage, current, power, energy, frequency,
+                     factor);
+#endif                                                                         // DEBUG
             fflush (logfile);                                                  // flush output to logfile
         }
         sleep (100);                                                           // Sleep longer than interrupt timer interval
@@ -449,13 +467,67 @@ void logloop (int fd, int interval)
  * most of the work is done by above functions
  * so main() just processes args and chooses feature to execute
  */
-int main (int argc, char *argv[])
+int
+main (int argc, char *argv[])
 {
     int fd;                                                                    // file descriptor for serial port
     char *portname = TERMINAL;                                                 // file name of serial port to open
     int newaddr;                                                               // new address argument
+    int period = LOGINTERVAL;
+    int device = 0;                                                            // default device address
+    int address = 0;                                                           // initialise to error value 'till set by specific option
+    int resetflag = 0;
+    int logflag = 0;
+    int c;                                                                     // char returned from getops()
+    int cmd;                                                                   // return value from sendcommand()
 
     progname = argv[0];                                                        // set my program name to a global, for use in usage()
+
+    /*
+     * Parse command line options (see usage() function above for arg descriptions)
+     */
+    while ((c = getopt (argc, argv, "lra:d:p:h")) != -1)
+    {
+        switch (c)
+        {
+        case 'p':
+            period = atoi (optarg);
+            if (period < 1 || period > 3600)
+                usage ("Period must be between 1 and 3600");
+            break;
+        case 'd':
+            device = atoi (optarg);
+            if (device < 0 || device > 7)
+                usage ("Device address must be between 0 and 7");
+            break;
+        case 'a':
+            address = atoi (optarg);
+            if (address < 1 || address > 7)
+                usage ("New address must be between 1 and 7");
+            break;
+        case 'r':
+            resetflag++;                                                       // perform actual reset outside getopts loop, to ensure we get all opts
+            break;
+        case 'l':
+            logflag++;                                                         // call logging routine outside getopts loop, to ensure we get all opts
+            break;
+        case 'h':
+            usage ("");                                                        // usage() call exits program, so doesn't return here
+            break;
+        case '?':                                                             // error return from getopts
+            usage (NULL);
+        default:
+            usage
+                ("At default case in getopt switch - should never get here");
+        }
+    }
+    /*
+     * we've exhausted the options, but there may be one more argument (USB serial device)
+     */
+    if (argc > (optind + 1))                                                   // there are outstanding arguments
+        usage ("Too many arguments");                                          // only one additional arg supported
+    if (argc > optind)                                                         // we have one additional argument
+        portname = argv[optind];                                               // argument is new serial port name
 
     fd = openserial (portname);                                                // open serial port to device on MODBUS
     if (fd < 0)                                                                // can't do anything else 'til port is open
@@ -463,51 +535,37 @@ int main (int argc, char *argv[])
         usage ("Error: cannot open serial port");
     }
 
-    switch (argc)                                                              // test for arguments
+    if (address)                                                               // address initialised to zero, so has been set
     {
-    case 1:                                                                    // no args, so just take a human readable reading and exit
-        sendcommand (fd, 1);                                                   // send command and recieve initial ack from device
-        readvalues (fd);                                                       // read rest of data from device 
-        printf                                                                 // print values to stdout, right aligned
-            ("Voltage:%8.2f\nCurrent:%8.2f\nPower:%10.2f\nEnergy:%9.2f\nFrequency:%6.2f\nfactor:%9.2f\nalarm:%7x\n",
-			                                         voltage, current, power, energy, frequency, factor, alarmset);
-        exit (0);
-
-    case 2:                                                                    // only one argument, so should be "logging"
-        if (strcmp (argv[1], "logging") == 0)                                  // strcmp returns zero if strings match
-            logloop (fd, LOGINTERVAL);                                         // Function logloop() loops forever so doesn't return
-        else if (strcmp (argv[1], "newaddr") == 0)
-            usage ("new address must be specified");
-		else if (strcmp (argv[1], "reset") == 0)                               // command line arg to reset energy counter
-		{
-			printf("About to reset energy counter on device 1\n");
-		    if (reset_energy (fd, 1) == 0)                                     // reset energy counter on specified device
-                printf ("Reset Success!\n");                                   // routine returns 0 on success
-			else
-				printf ("reset_energy() returned error!\n");
-			exit (0);
-		}
-		else
-            usage ("unknown argument");
-
-    case 3:                                                                    // address change mode - needs two arguments 
-        if (strcmp (argv[1], "newaddr") == 0)
-        {
-            newaddr = atoi (argv[2]);                                          // convert arg to int
-            if ((newaddr > 0) && (newaddr <= 7))                               // second argument needs to be new address
-            {
-                setaddress (fd, atoi (argv[2]));
-                exit (0);
-            }                                                                  // if we get here, new address value out of range
-            usage ("New address arg must be between 1 and 7");
-        }                                                                      // if we get here, argument didn't match
-		else if (strcmp (argv[1], "logging") == 0)                             // we've specified an argument to "logging" mode
-            logloop (fd, atoi (argv[2]));                                      // run logging with specified argument
-        else
-            usage ("Unknown argument");
-
-    default:
-        usage ("Too many arguments");
+        setaddress (fd, address);
+        device = address;                                                      // from now on use the new address for any other commands
     }
-    usage ("Should never get here");
+
+    if (resetflag)
+    {
+        printf ("About to reset energy accumulator on device %d\n", device);
+        if (reset_energy (fd, device) == 0)
+            printf ("Energy counter reset success\n");
+        else
+            printf ("Energy counter reset FAILED\n");
+    }
+
+    if (logflag)                                                               // logging option set
+        logloop (fd, device, period);                                          // logloop doesn't return
+
+    /*
+     * if we get here there are no outstanding opts or args,
+     * so just print immediate values from device and exit
+     */
+    cmd = sendcommand (fd, device);                                            // send command and recieve initial ack from device
+    if (cmd < 0)
+    {
+        read (fd, buf, 20);                                                    // on error in sendcommand, flush port before exit
+        exit (1);                                                              // on error in sendcommand, run readvalues() before exit, to flush port
+    }
+    readvalues (fd);                                                           // read rest of data from device 
+    printf                                                                     // print values to stdout, right aligned
+        ("Voltage:%8.2f\nCurrent:%8.2f\nPower:%10.2f\nEnergy:%9.2f\nFrequency:%6.2f\nfactor:%9.2f\nalarm:%7x\n",
+		                                            voltage, current, power, energy, frequency, factor, alarmset);
+    exit (0);
 }

@@ -33,6 +33,7 @@
 #include <string.h>
 #include <termios.h>
 #include <unistd.h>
+#include <sys/time.h>								// needed for 32bit compile for older Pis
 #include <time.h>
 #include <signal.h>
 #include <assert.h>
@@ -59,11 +60,12 @@ usage (const char *errstring)
 {
     if (errstring != NULL)
         fprintf (stderr, "%s\n", errstring);
-    fprintf (stderr, "Usage: %s [options] [<serial port device>]\nOptions:\
+    fprintf (stderr, "Usage: %s [options] [<serial port device>] (default /dev/ttyUSB0)\
+\nOptions:\
 \n    -l           = forks background process to log periodically to daily logfiles\
 \n    -r           = reset energy accumulator on device\
-\n    -a <address> = set address of device (command sent via universal address 0xF8)\
-\n    -d <address> = specify device address to operate on (default 0xF8)\
+\n    -a <address> = set address of device (command sent via universal address 0xF8 unless -d specified)\
+\n    -d <device>  = specify device address to operate on (default 0xF8)\
 \n    -p <period>  = logging period in seconds (default 60 seconds)\
 \n    -h           = help (print this message)\n\n", progname);
     exit (1);
@@ -205,12 +207,12 @@ readvalues (int fd)
     /* calculate parameter values from returned chars
      * and store in global variables
      */
-    voltage = (float) ((buf[0] << 8) | buf[1]) / 10;
-    current = (float) ((buf[4] << 24) | (buf[5] << 16) | (buf[2] << 8) | buf[3]) / 1000;
-    power = (float) ((buf[8] << 24) | (buf[9] << 16) | (buf[6] << 8) | buf[7]) / 10000;
-    energy = (float) ((buf[12] << 24) | (buf[13] << 16) | (buf[10] << 8) | buf[11]) / 1000;
-    frequency = (float) ((buf[14] << 8) | buf[15]) / 10;
-    factor = (float) ((buf[16] << 8) | buf[17]) / 100;
+    voltage = (double) ((buf[0] << 8) | buf[1]) / 10;
+    current = (double) ((buf[4] << 24) | (buf[5] << 16) | (buf[2] << 8) | buf[3]) / 1000;
+    power = (double) ((buf[8] << 24) | (buf[9] << 16) | (buf[6] << 8) | buf[7]) / 10000;
+    energy = (double) ((buf[12] << 24) | (buf[13] << 16) | (buf[10] << 8) | buf[11]) / 1000;
+    frequency = (double) ((buf[14] << 8) | buf[15]) / 10;
+    factor = (double) ((buf[16] << 8) | buf[17]) / 100;
     alarmset = (buf[18] << 8) | buf[19];
     return 0;
 }
@@ -453,7 +455,7 @@ logloop (int fd, int device, int interval)
             readvalues (fd);                                                   // read rest of data from device and present
             fprintf (logfile, "%s,%05.1f,%04.1f,%04.1f,%05.1f,%.1f,%.2f\n",
                      timestamp, voltage, current, power, energy, frequency,
-                     factor);
+                     factor );
 #endif                                                                         // DEBUG
             fflush (logfile);                                                  // flush output to logfile
         }
